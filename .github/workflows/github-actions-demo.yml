@@ -11,18 +11,18 @@ jobs:
 
     steps:
       - name: Vérifier le code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Installer Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
-          node-version: '20.18.0' # Remplacez '14' par la version de Node.js que vous utilisez
+          node-version: '20.18.0'
 
       - name: Installer les dépendances
         run: npm install
 
       - name: Compiler l'application
-        run: npm run build # Assurez-vous que votre commande de build est correcte
+        run: npm run build
 
       - name: Exécuter les tests unitaires
         run: npm test
