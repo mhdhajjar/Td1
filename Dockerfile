@@ -1,71 +1,91 @@
-# # Utiliser une image Alpine avec Node.js
-# FROM alpine:3.15
+# # Étape de construction
+# FROM node:alpine AS builder
 
-# # Installer Node.js et npm
-# RUN apk add --no-cache nodejs npm
-
-# # Définir le répertoire de travail
+# # Chemin de travail
 # WORKDIR /app
 
-# # Ajouter un utilisateur non root pour des raisons de sécurité
-# RUN addgroup -S node && adduser -S node -G node
-
-# # Copier les fichiers package.json et package-lock.json dans le conteneur
+# # Copier les fichiers de dépendances
 # COPY package*.json ./
 
-# # Installer les dépendances du projet
+# # Installer les dépendances
 # RUN npm install
 
-# # Copier tout le code source de l'application
-# COPY --chown=node:node ./src /app/src
-# COPY --chown=node:node tsconfig.json ./
+# # Copier le reste des fichiers de l'application
+# COPY . .
 
-# # Compiler le projet TypeScript
+# # Construire l'application (si nécessaire)
 # RUN npm run build
 
-# # Passer à l'utilisateur non root
-# USER node
+# # Étape de production
+# FROM alpine:3.15 AS runner
 
-# # Lancer l'application (après compilation)
+# # Chemin de travail
+# WORKDIR /app
+
+# # Copier uniquement les fichiers nécessaires depuis l'étape de build
+# COPY --from=builder /app/dist ./dist
+# COPY --from=builder /app/package*.json ./
+
+# # Installer uniquement les dépendances de production
+# RUN apk add --no-cache nodejs npm && npm install --production
+
+# # Commande d'exécution
 # CMD ["npm", "start"]
 
 
+# FROM alpine:3.20
+
+# WORKDIR /usr/src/app
+
+# RUN apk add --no-cache nodejs npm
+
+# COPY package*.json ./
+
+# RUN npm install
+
+# COPY dist/ ./dist/
+
+# RUN addgroup -S node && adduser -S node -G node
+
+# RUN chown -R node:node /usr/src/app
+
+# USER node
+
+# RUN npm run build || echo "No build step defined"
+
+# CMD ["node", "dist/index.js"]
 
 
 
-FROM alpine:3.15 as builder
+FROM node:20-alpine AS builder
 
-RUN apk add --no-cache nodejs npm
-
-WORKDIR /app
+WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-# Run npm install to generate node_modules
 RUN npm install
 
-# Now copy node_modules to prod_node_modules
-RUN cp -R node_modules prod_node_modules
+COPY . .
 
-COPY ./src /app/src
-COPY tsconfig.json ./
+RUN npm run build || echo "No build step defined"
 
-RUN npm run build
+FROM alpine:3.20 AS runner
 
-# Final Stage
-FROM alpine:3.15 as runner
+RUN apk add --no-cache nodejs npm
 
-RUN apk add --no-cache nodejs
-
-WORKDIR /app
-
-COPY --from=builder --chown=node:node /app/dist /app/dist
-COPY --from=builder --chown=node:node package*.json ./
-COPY --from=builder /app/prod_node_modules ./node_modules
+WORKDIR /usr/src/app
 
 RUN addgroup -S node && adduser -S node -G node
 
+COPY --from=builder --chown=node:node /usr/src/app/dist /usr/src/app/dist
+COPY --from=builder --chown=node:node /usr/src/app/package*.json /usr/src/app/
+
+RUN npm install --only=production
+
 USER node
 
+EXPOSE 8000
+
 CMD ["node", "dist/index.js"]
+
 
